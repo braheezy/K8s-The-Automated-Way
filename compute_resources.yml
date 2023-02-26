@@ -8,6 +8,7 @@
     name: k8s-the-hard-way
     cidr_block: 10.0.0.0/16
   register: cluster_vpc
+  tags: network
 
 - name: Create subnet with IP address range long enough to accommodate all nodes in cluster
   amazon.aws.ec2_vpc_subnet:
@@ -18,6 +19,7 @@
     tags:
       Name: '{{ tag_name }}'
   register: subnet
+  tags: network
 
 - name: Configure and attach Internet Gateway for cluster
   amazon.aws.ec2_vpc_igw:
@@ -26,6 +28,7 @@
     tags:
       Name: '{{ tag_name }}'
   register: gateway
+  tags: network
 
 - name: Configure Route Tables for cluster and Gateway
   amazon.aws.ec2_vpc_route_table:
@@ -37,6 +40,7 @@
     routes:
       - dest: 0.0.0.0/0
         gateway_id: '{{ gateway.gateway_id }}'
+  tags: network
 
 - name: Configure security groups, or firewall rules
   amazon.aws.ec2_security_group:
@@ -70,6 +74,8 @@
         ports:
           - 1
         cidr_ip: 0.0.0.0/0
+  register: security_group
+  tags: network
 
 # "Target groups route requests to one or more registered targets"
 - name: Create load balancer target group
@@ -83,6 +89,7 @@
       - Id: 10.0.1.10
     state: present
   register: target_group
+  tags: network
 
 - name: Create network load balancer to help public access to cluster
   community.aws.elb_network_lb:
@@ -97,12 +104,97 @@
           - Type: forward
             TargetGroupName: '{{ target_group.target_group_name }}'
   register: elb
+  tags: network
+
+- name: Gather information about the LB
+  amazon.aws.elb_application_lb_info:
+    names: '{{ tag_name }}'
+  register: lb_info
 
 - name: Register public cluster DNS name
   set_fact:
-    k8s_address: '{{ elb.dns_name }}'
+    k8s_address: '{{ lb_info.load_balancers[0].dns_name }}'
 
 - debug:
     msg: >
       Cluster Networking has been configured! Here's the public address for the cluster:
           {{ k8s_address }}
+
+# ==========================================================
+# =================== Compute Instances ====================
+# ==========================================================
+# Using Ubuntu Server 20.04, which has good support for the containerd container runtime.
+# Each compute instance will get a fixed private IP address to simplify bootstrapping
+
+- name: Find the AMI for our compute instances
+  amazon.aws.ec2_ami_info:
+    owners:
+      - 099720109477
+    filters:
+      root-device-type: ebs
+      architecture: x86_64
+      name: ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*
+  register: ami_info
+  tags: compute
+
+- name: Generate keys to allow SSH access to instances
+  amazon.aws.ec2_key:
+    name: '{{ tag_name }}'
+
+- name: Check if control nodes exist
+  amazon.aws.ec2_instance_info:
+    filters:
+      "tag:Name": controller-*
+  register: control_node_info
+
+- name: Create 3 instance for k8s control nodes
+  amazon.aws.ec2_instance:
+    key_name: '{{ tag_name }}'
+    security_group: '{{ security_group.group_id }}'
+    image_id: '{{ ami_info.images[0].image_id }}'
+    instance_type: t3.micro
+    count: 1
+    network:
+      assign_public_ip: true
+      private_ip_address: 10.0.1.1{{ item }}
+      source_dest_check: false
+    user_data: name=controller-{{ item }}
+    vpc_subnet_id: '{{ subnet.subnet.id }}'
+    volumes:
+      - device_name: /dev/sda1
+        ebs:
+          volume_size: 50
+    tags:
+      Name: controller-{{ item }}
+  with_sequence: start=0 end=2
+  when: control_node_info.instances|length < 3
+  tags: compute
+
+- name: Check if worker nodes exist
+  amazon.aws.ec2_instance_info:
+    filters:
+      "tag:Name": worker-*
+  register: worker_node_info
+
+- name: Create 3 instance for k8s worker nodes
+  amazon.aws.ec2_instance:
+    key_name: '{{ tag_name }}'
+    security_group: '{{ security_group.group_id }}'
+    image_id: '{{ ami_info.images[0].image_id }}'
+    instance_type: t3.micro
+    count: 1
+    network:
+      assign_public_ip: true
+      private_ip_address: 10.0.1.2{{ item }}
+      source_dest_check: false
+    user_data: name=worker-{{ item }}|pod-cidr=10.200.{{ item }}.0/24
+    vpc_subnet_id: '{{ subnet.subnet.id }}'
+    volumes:
+      - device_name: /dev/sda1
+        ebs:
+          volume_size: 50
+    tags:
+      Name: worker-{{ item }}
+  with_sequence: start=0 end=2
+  when: worker_node_info.instances|length < 3
+  tags: compute
