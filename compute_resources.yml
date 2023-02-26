@@ -1,0 +1,107 @@
+---
+# ==========================================================
+# ====================== Networking ========================
+# ==========================================================
+- name: Define VPC for cluster
+  amazon.aws.ec2_vpc_net:
+    state: present
+    name: k8s-the-hard-way
+    cidr_block: 10.0.0.0/16
+  register: cluster_vpc
+
+- name: Create subnet with IP address range long enough to accommodate all nodes in cluster
+  amazon.aws.ec2_vpc_subnet:
+    state: present
+    vpc_id: '{{ cluster_vpc.vpc.id }}'
+    # host up to 254 compute instances
+    cidr: 10.0.0.0/24
+    tags:
+      Name: '{{ tag_name }}'
+  register: subnet
+
+- name: Configure and attach Internet Gateway for cluster
+  amazon.aws.ec2_vpc_igw:
+    vpc_id: '{{ cluster_vpc.vpc.id }}'
+    state: present
+    tags:
+      Name: '{{ tag_name }}'
+  register: gateway
+
+- name: Configure Route Tables for cluster and Gateway
+  amazon.aws.ec2_vpc_route_table:
+    vpc_id: '{{ cluster_vpc.vpc.id }}'
+    tags:
+      Name: '{{ tag_name }}'
+    subnets:
+      - '{{ subnet.subnet.id }}'
+    routes:
+      - dest: 0.0.0.0/0
+        gateway_id: '{{ gateway.gateway_id }}'
+
+- name: Configure security groups, or firewall rules
+  amazon.aws.ec2_security_group:
+    Name: '{{ tag_name }}'
+    description: Kubernetes security group
+    vpc_id: '{{ cluster_vpc.vpc.id }}'
+    tags:
+      Name: '{{ tag_name }}'
+    rules:
+      # Allow all internal communication for all protocols
+      - proto: all
+        cidr_ip: 10.0.0.0/16
+      - proto: all
+        cidr_ip: 10.200.0.0/16
+      # Allow SSH
+      - proto: tcp
+        ports:
+          - 22
+        cidr_ip: 0.0.0.0/0
+      # Allow HTTPS
+      - proto: tcp
+        ports:
+          - 6443
+        cidr_ip: 0.0.0.0/0
+      - proto: tcp
+        ports:
+          - 443
+        cidr_ip: 0.0.0.0/0
+      # Allow ICMP aka ping(?)
+      - proto: icmp
+        ports:
+          - 1
+        cidr_ip: 0.0.0.0/0
+
+# "Target groups route requests to one or more registered targets"
+- name: Create load balancer target group
+  community.aws.elb_target_group:
+    name: '{{ tag_name }}'
+    protocol: TCP
+    port: 6443
+    vpc_id: '{{ cluster_vpc.vpc.id }}'
+    target_type: ip
+    targets:
+      - Id: 10.0.1.1{0,1,2}
+  register: target_group
+
+- name: Create network load balancer to help public access to cluster
+  amazon.aws.elb_application_lb:
+    name: '{{ tag_name }}'
+    subnets:
+      - '{{ subnet.subnet.id }}'
+    scheme: internet-facing
+    # Use the VPC's default groups
+    security_groups: []
+    listeners:
+      - Protocol: TCP
+        Port: 443
+        DefaultActions:
+          - Type: forward
+            TargetGroupName: '{{ target_group.target_group_name }}'
+  register: elb
+
+- name: Register public cluster DNS name
+  set_fact:
+    k8s_address: elb.dns_name
+
+- debug:
+    msg: "Cluster Networking has been configured! Here's the public address for the cluster: {{ k8s_address }}"

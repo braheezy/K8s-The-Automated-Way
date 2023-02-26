@@ -1,0 +1,15 @@
+---
+# Complete Ansible provisioning for https://github.com/prabhatsharma/kubernetes-the-hard-way-aws
+- hosts: localhost
+  connection: local
+  tasks:
+
+    - import_tasks: install_aws_cli.yml
+      vars:
+        aws_region: us-west-1
+
+    - import_tasks: install_client_tools.yml
+
+    - import_tasks: compute_resources.yml
+      vars:
+        tag_name: kubernetes
