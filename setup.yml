@@ -4,12 +4,54 @@
   connection: local
   tasks:
 
-    - import_tasks: install_aws_cli.yml
-      vars:
-        aws_region: us-west-1
+    - name: Download awscli installer zip
+      get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: /tmp/awscliv2.zip
 
-    - import_tasks: install_client_tools.yml
+    - name: Unarchive awscli installer zip
+      unarchive:
+        src: /tmp/awscliv2.zip
+        dest: /tmp/
+        remote_src: yes
 
-    - import_tasks: compute_resources.yml
-      vars:
-        tag_name: kubernetes
+    - name: Run installer script
+      become: yes
+      command: sh /tmp/aws/install
+      args:
+        creates: /usr/local/aws-cli
+
+    - name: Set default Compute region for AWS
+      command: aws configure set default.region {{ aws_region }}
+
+    - name: Configure AWS credentials on controller
+      shell: '{{ item }}'
+      loop:
+        - aws configure set default.aws_access_key_id $(skate get aws_access_key)
+        - aws configure set default.aws_secret_access_key $(skate get aws_access_key_secret)
+      no_log: true
+
+    - name: Check AWS credentials
+      command: aws sts get-caller-identity
+
+    - name: Install PKI infra tools
+      become: yes
+      yum:
+        name: golang-github-cloudflare-cfssl
+
+    - name: Install kubectl
+      become: yes
+      yum:
+        name: kubernetes-client
+
+    - name: Add Hashicorp repo
+      become: yes
+      yum_repository:
+        baseurl: https://rpm.releases.hashicorp.com/fedora/hashicorp.repo
+        name: hashicorp
+
+    - name: Install Terraform
+      become: yes
+      yum:
+        name: terraform
+        state: present

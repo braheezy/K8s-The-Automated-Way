@@ -4,7 +4,7 @@
 # ==========================================================
 - name: Define VPC for cluster
   amazon.aws.ec2_vpc_net:
-    state: present
+    state: '{{ state }}'
     name: k8s-the-hard-way
     cidr_block: 10.0.0.0/16
   register: cluster_vpc
@@ -12,7 +12,7 @@
 
 - name: Create subnet with IP address range long enough to accommodate all nodes in cluster
   amazon.aws.ec2_vpc_subnet:
-    state: present
+    state: '{{ state }}'
     vpc_id: '{{ cluster_vpc.vpc.id }}'
     # host up to 254 compute instances
     cidr: 10.0.1.0/24
@@ -24,7 +24,7 @@
 - name: Configure and attach Internet Gateway for cluster
   amazon.aws.ec2_vpc_igw:
     vpc_id: '{{ cluster_vpc.vpc.id }}'
-    state: present
+    state: '{{ state }}'
     tags:
       Name: '{{ tag_name }}'
   register: gateway
@@ -33,6 +33,7 @@
 - name: Configure Route Tables for cluster and Gateway
   amazon.aws.ec2_vpc_route_table:
     vpc_id: '{{ cluster_vpc.vpc.id }}'
+    state: '{{ state }}'
     tags:
       Name: '{{ tag_name }}'
     subnets:
@@ -44,6 +45,7 @@
 
 - name: Configure security groups, or firewall rules
   amazon.aws.ec2_security_group:
+    state: '{{ state }}'
     name: '{{ tag_name }}'
     description: Kubernetes security group
     vpc_id: '{{ cluster_vpc.vpc.id }}'
@@ -80,6 +82,7 @@
 # "Target groups route requests to one or more registered targets"
 - name: Create load balancer target group
   community.aws.elb_target_group:
+    state: '{{ state }}'
     name: '{{ tag_name }}'
     protocol: TCP
     port: 6443
@@ -87,12 +90,12 @@
     target_type: ip
     targets:
       - Id: 10.0.1.10
-    state: present
   register: target_group
   tags: network
 
 - name: Create network load balancer to help public access to cluster
   community.aws.elb_network_lb:
+    state: '{{ state }}'
     name: '{{ tag_name }}'
     subnets:
       - '{{ subnet.subnet.id }}'
@@ -110,15 +113,18 @@
   amazon.aws.elb_application_lb_info:
     names: '{{ tag_name }}'
   register: lb_info
+  when: "state == 'present'"
 
 - name: Register public cluster DNS name
   set_fact:
     k8s_address: '{{ lb_info.load_balancers[0].dns_name }}'
+  when: "state == 'present'"
 
 - debug:
     msg: >
       Cluster Networking has been configured! Here's the public address for the cluster:
           {{ k8s_address }}
+  when: "state == 'present'"
 
 # ==========================================================
 # =================== Compute Instances ====================
@@ -136,9 +142,11 @@
       name: ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*
   register: ami_info
   tags: compute
+  when: "state == 'present'"
 
 - name: Generate keys to allow SSH access to instances
   amazon.aws.ec2_key:
+    state: '{{ state }}'
     name: '{{ tag_name }}'
 
 - name: Check if control nodes exist
@@ -146,9 +154,11 @@
     filters:
       "tag:Name": controller-*
   register: control_node_info
+  when: "state == 'present'"
 
 - name: Create 3 instance for k8s control nodes
   amazon.aws.ec2_instance:
+    state: '{{ state }}'
     key_name: '{{ tag_name }}'
     security_group: '{{ security_group.group_id }}'
     image_id: '{{ ami_info.images[0].image_id }}'
@@ -175,9 +185,11 @@
     filters:
       "tag:Name": worker-*
   register: worker_node_info
+  when: "state == 'present'"
 
 - name: Create 3 instance for k8s worker nodes
   amazon.aws.ec2_instance:
+    state: '{{ state }}'
     key_name: '{{ tag_name }}'
     security_group: '{{ security_group.group_id }}'
     image_id: '{{ ami_info.images[0].image_id }}'

@@ -1,9 +1,0 @@
----
-
-- name: Install PKI infra tools
-  yum:
-    name: golang-github-cloudflare-cfssl
-
-- name: Install kubectl
-  yum:
-    name: kubernetes-client
