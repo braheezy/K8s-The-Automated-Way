@@ -1,0 +1,7 @@
+plugin: aws_ec2
+filters:
+  instance-state-name: running
+  tag:Name: kubernetes
+groups:
+  controller: "'controller' in tags.Id"
+  worker: "'worker' in tags.Id"
