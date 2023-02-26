@@ -1,1 +1,6 @@
 .vagrant
+.terraform
+.vscode
+*.pem
+pki/*.json
+*.csr
