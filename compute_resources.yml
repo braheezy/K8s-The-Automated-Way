@@ -14,7 +14,7 @@
     state: present
     vpc_id: '{{ cluster_vpc.vpc.id }}'
     # host up to 254 compute instances
-    cidr: 10.0.0.0/24
+    cidr: 10.0.1.0/24
     tags:
       Name: '{{ tag_name }}'
   register: subnet
@@ -40,7 +40,7 @@
 
 - name: Configure security groups, or firewall rules
   amazon.aws.ec2_security_group:
-    Name: '{{ tag_name }}'
+    name: '{{ tag_name }}'
     description: Kubernetes security group
     vpc_id: '{{ cluster_vpc.vpc.id }}'
     tags:
@@ -80,17 +80,16 @@
     vpc_id: '{{ cluster_vpc.vpc.id }}'
     target_type: ip
     targets:
-      - Id: 10.0.1.1{0,1,2}
+      - Id: 10.0.1.10
+    state: present
   register: target_group
 
 - name: Create network load balancer to help public access to cluster
-  amazon.aws.elb_application_lb:
+  community.aws.elb_network_lb:
     name: '{{ tag_name }}'
     subnets:
       - '{{ subnet.subnet.id }}'
     scheme: internet-facing
-    # Use the VPC's default groups
-    security_groups: []
     listeners:
       - Protocol: TCP
         Port: 443
@@ -101,7 +100,9 @@
 
 - name: Register public cluster DNS name
   set_fact:
-    k8s_address: elb.dns_name
+    k8s_address: '{{ elb.dns_name }}'
 
 - debug:
-    msg: "Cluster Networking has been configured! Here's the public address for the cluster: {{ k8s_address }}"
+    msg: >
+      Cluster Networking has been configured! Here's the public address for the cluster:
+          {{ k8s_address }}
