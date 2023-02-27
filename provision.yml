@@ -1,7 +1,38 @@
 ---
 
 - hosts: aws_ec2
-  tasks:
 
-    - name: Ping
-      ping:
+  pre_tasks:
+    - set_fact:
+        vm_name: "{{ hostvars[inventory_hostname]['name'] }}"
+  tasks:
+    - debug:
+        msg: Hello from {{ vm_name }}
+
+    - name: Distribute certs/keys/kubeconfigs to workers
+      copy:
+        src: '{{ item }}'
+        dest: '{{ ansible_env.HOME }}'
+      loop:
+        - pki/{{ vm_name }}-key.pem
+        - pki/{{ vm_name }}.pem
+        - pki/ca.pem
+        - kubeconfigs/{{ vm_name }}.kubeconfig
+        - kubeconfigs/kube-proxy.kubeconfig
+      when: "'worker' in vm_name"
+
+    - name: Distribute certs/keys/kubeconfigs to controllers
+      copy:
+        src: '{{ item }}'
+        dest: '{{ ansible_env.HOME }}'
+      loop:
+        - pki/service-account-key.pem
+        - pki/service-account.pem
+        - pki/ca.pem
+        - pki/ca-key.pem
+        - pki/kubernetes-key.pem
+        - pki/kubernetes.pem
+        - kubeconfigs/admin.kubeconfig
+        - kubeconfigs/kube-controller-manager.kubeconfig
+        - kubeconfigs/kube-scheduler.kubeconfig
+      when: "'controller' in vm_name"
