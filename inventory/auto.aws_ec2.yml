@@ -5,3 +5,5 @@ filters:
 groups:
   controller: "'controller' in tags.Id"
   worker: "'worker' in tags.Id"
+compose:
+  vm_name: tags.Id

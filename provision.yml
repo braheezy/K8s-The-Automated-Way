@@ -4,7 +4,7 @@
 
   pre_tasks:
     - set_fact:
-        vm_name: "{{ hostvars[inventory_hostname]['name'] }}"
+        vm_name: "{{ hostvars[inventory_hostname]['vm_name'] }}"
   tasks:
     - debug:
         msg: Hello from {{ vm_name }}
