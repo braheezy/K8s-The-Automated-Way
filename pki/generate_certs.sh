@@ -11,18 +11,6 @@ SUCCESS='#31748f'
 # purple
 INFO='#c4a7e7'
 
-if ! command -v gum &>/dev/null
-then
-    echo "Installing Gum. This may take a minute..."
-    sudo bash -c 'echo "[charm]
-name=Charm
-baseurl=https://repo.charm.sh/yum/
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.charm.sh/yum/gpg.key" > /etc/yum.repos.d/charm.repo'
-    sudo yum install -y gum &>/dev/null
-fi
-
 cat > ca-config.json <<EOF
 {
   "signing": {
