@@ -3,7 +3,7 @@ filters:
   instance-state-name: running
   tag:Name: kubernetes
 groups:
-  controller: "'controller' in tags.Id"
-  worker: "'worker' in tags.Id"
+  controllers: "'controller' in tags.Id"
+  workers: "'worker' in tags.Id"
 compose:
   vm_name: tags.Id

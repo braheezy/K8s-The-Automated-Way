@@ -6,38 +6,37 @@ terraform {
     }
   }
 }
-variable "aws_region" {
+variable "AWS_REGION" {
   type = string
 }
-variable "tag_name" {
+variable "TAG_NAME" {
   type = string
 }
-
+variable "CLUSTER_IP_START" {
+  type = string
+}
 provider "aws" {
-  region = var.aws_region
+  region = var.AWS_REGION
   default_tags {
     tags = {
-      Name = var.tag_name
+      Name = var.TAG_NAME
     }
   }
 }
-
 
 # ==========================================================
 # ====================== Networking ========================
 # ==========================================================
 # Define VPC for cluster
 resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = "${var.CLUSTER_IP_START}.0/24"
   enable_dns_support   = true
   enable_dns_hostnames = true
 }
 # Create subnet with IP address range long enough to accommodate all nodes in cluster
 resource "aws_subnet" "main" {
-  vpc_id = aws_vpc.main.id
-  # host up to 254 compute instances
-  cidr_block = "10.0.1.0/24"
-
+  vpc_id     = aws_vpc.main.id
+  cidr_block = "${var.CLUSTER_IP_START}.0/24"
 }
 # Configure and attach Internet Gateway for cluster
 resource "aws_internet_gateway" "main" {
@@ -59,7 +58,7 @@ resource "aws_route_table_association" "a" {
 
 # Configure security groups, or firewall rules
 resource "aws_security_group" "inbound" {
-  name        = var.tag_name
+  name        = var.TAG_NAME
   vpc_id      = aws_vpc.main.id
   description = "Kubernetes security group"
 
@@ -68,34 +67,41 @@ resource "aws_security_group" "inbound" {
     description = "Allow all internal communication for all protocols"
     from_port   = 0
     to_port     = 0
-    cidr_blocks = ["10.0.0.0/16", "10.200.0.0/16"]
+    cidr_blocks = ["${var.CLUSTER_IP_START}.0/24", "10.200.0.0/16"]
   }
   ingress {
     protocol    = "tcp"
     description = "Allow SSH"
-    from_port   = 22
+    from_port   = 0
     to_port     = 22
     cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
     protocol    = "tcp"
     description = "Allow https 6443"
-    from_port   = 6443
+    from_port   = 0
     to_port     = 6443
     cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
     protocol    = "tcp"
     description = "Allow https 443"
-    from_port   = 443
+    from_port   = 0
     to_port     = 443
     cidr_blocks = ["0.0.0.0/0"]
   }
   ingress {
     protocol    = "icmp"
     description = "Allow ICMP aka ping"
-    from_port   = 1
-    to_port     = 1
+    from_port   = -1
+    to_port     = -1
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  # A default Egress rules that AWS puts but Terraform removes unless we set it back
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 }
@@ -103,27 +109,37 @@ resource "aws_security_group" "inbound" {
 # "Target groups route requests to one or more registered targets"
 # Create load balancer target group
 resource "aws_lb_target_group" "main" {
-  name        = var.tag_name
+  name        = var.TAG_NAME
   port        = 6443
   protocol    = "TCP"
   target_type = "ip"
   vpc_id      = aws_vpc.main.id
+  health_check {
+    protocol = "HTTP"
+    port     = 80
+    path     = "/healthz"
+  }
 }
 resource "aws_lb_target_group_attachment" "main" {
+  count            = 3
   target_group_arn = aws_lb_target_group.main.arn
-  target_id        = "10.0.1.10"
+  target_id        = "${var.CLUSTER_IP_START}.1${count.index}"
 }
 
 # Create network load balancer to help public access to cluster
 resource "aws_lb" "main" {
-  name               = var.tag_name
+  name               = var.TAG_NAME
   internal           = false
   load_balancer_type = "network"
-  subnets            = [aws_subnet.main.id]
+  # subnets            = [aws_subnet.main.id]
+  subnet_mapping {
+    subnet_id     = aws_subnet.main.id
+    allocation_id = aws_eip.main.allocation_id
+  }
 }
 resource "aws_lb_listener" "forward" {
   load_balancer_arn = aws_lb.main.arn
-  port              = "443"
+  port              = 6443
   protocol          = "TCP"
 
   default_action {
@@ -131,6 +147,11 @@ resource "aws_lb_listener" "forward" {
     target_group_arn = aws_lb_target_group.main.arn
   }
 }
+
+resource "aws_eip" "main" {
+  vpc = true
+}
+
 # ==========================================================
 # =================== Compute Instances ====================
 # ==========================================================
@@ -162,12 +183,12 @@ resource "tls_private_key" "dev" {
   rsa_bits  = 4096
 }
 resource "aws_key_pair" "deployer" {
-  key_name   = "${var.tag_name}-key"
+  key_name   = "${var.TAG_NAME}-key"
   public_key = tls_private_key.dev.public_key_openssh
 }
 resource "local_sensitive_file" "private_key" {
   content  = tls_private_key.dev.private_key_pem
-  filename = "${var.tag_name}-private.pem"
+  filename = "${var.TAG_NAME}-private.pem"
 }
 
 # Create 3 instance for k8s control nodes
@@ -175,14 +196,14 @@ resource "aws_instance" "controller" {
   count = 3
 
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "t3.micro"
+  instance_type               = "t2.micro"
   key_name                    = aws_key_pair.deployer.key_name
   vpc_security_group_ids      = [aws_security_group.inbound.id]
   associate_public_ip_address = true
   user_data                   = "name=controller-${count.index}"
   subnet_id                   = aws_subnet.main.id
   source_dest_check           = false
-  private_ip                  = "10.0.1.1${count.index}"
+  private_ip                  = "${var.CLUSTER_IP_START}.1${count.index}"
 
   ebs_block_device {
     device_name = "/dev/sda1"
@@ -199,14 +220,14 @@ resource "aws_instance" "worker" {
   count = 3
 
   ami                         = data.aws_ami.ubuntu.id
-  instance_type               = "t3.micro"
+  instance_type               = "t2.micro"
   key_name                    = aws_key_pair.deployer.key_name
   vpc_security_group_ids      = [aws_security_group.inbound.id]
   associate_public_ip_address = true
   user_data                   = "name=worker-${count.index}|pod-cidr=10.200.${count.index}.0/24"
   subnet_id                   = aws_subnet.main.id
   source_dest_check           = false
-  private_ip                  = "10.0.1.2${count.index}"
+  private_ip                  = "${var.CLUSTER_IP_START}.2${count.index}"
 
   ebs_block_device {
     device_name = "/dev/sda1"

@@ -5,3 +5,4 @@
 pki/*.json
 *.csr
 *.kubeconfig
+encryption-config.yml

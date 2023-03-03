@@ -1,14 +1,28 @@
 ---
 
 - hosts: aws_ec2
-
+  become: yes
   pre_tasks:
     - set_fact:
         vm_name: "{{ hostvars[inventory_hostname]['vm_name'] }}"
-  tasks:
-    - debug:
-        msg: Hello from {{ vm_name }}
+        cluster_ip: "{{ lookup('env', 'TF_VAR_CLUSTER_IP_START') }}"
+        k8s_public_ip: "{{ lookup('env', 'KUBERNETES_PUBLIC_ADDRESS') }}"
 
+    - name: Ensure system is updated
+      apt:
+        upgrade: yes
+        update_cache: yes
+
+    - name: Ensure tools are installed
+      apt:
+        name:
+          - bat
+          - net-tools
+        state: present
+
+- hosts: workers
+  become: yes
+  tasks:
     - name: Distribute certs/keys/kubeconfigs to workers
       copy:
         src: '{{ item }}'
@@ -19,8 +33,10 @@
         - pki/ca.pem
         - kubeconfigs/{{ vm_name }}.kubeconfig
         - kubeconfigs/kube-proxy.kubeconfig
-      when: "'worker' in vm_name"
 
+- hosts: controllers
+  become: yes
+  tasks:
     - name: Distribute certs/keys/kubeconfigs to controllers
       copy:
         src: '{{ item }}'
@@ -35,4 +51,9 @@
         - kubeconfigs/admin.kubeconfig
         - kubeconfigs/kube-controller-manager.kubeconfig
         - kubeconfigs/kube-scheduler.kubeconfig
-      when: "'controller' in vm_name"
+        - encryption-config.yml
+
+    - import_role:
+        name: etcd
+    - import_role:
+        name: control_plane

@@ -13,9 +13,6 @@ SUCCESS='#31748f'
 # purple
 INFO='#c4a7e7'
 
-KUBERNETES_PUBLIC_ADDRESS=$(aws elbv2 describe-load-balancers \
-    --name kubernetes --query 'LoadBalancers[0].DNSName' --output text)
-
 gum style --foreground $STATUS "Generating kubeconfigs for workers..."
 for i in 0 1 2; do
   instance="worker-${i}"

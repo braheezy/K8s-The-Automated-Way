@@ -1,0 +1,101 @@
+---
+
+- name: Ensure the k8s config directory exists
+  file:
+    path: /etc/kubernetes/config
+    state: directory
+
+- name: Ensure the k8s data directory exists
+  file:
+    path: /var/lib/kubernetes
+    state: directory
+
+- name: Install k8s control binaries
+  get_url:
+    url: https://dl.k8s.io/{{ kube_version }}/bin/linux/amd64/{{ item }}
+    dest: /usr/local/bin/
+    mode: 0744
+  loop:
+    # Handle API request in/out of the control plane
+    - kube-apiserver
+    # Manage all control loops, the things that watch and converge state
+    - kube-controller-manager
+    # Controls Pod deployment to Nodes
+    - kube-scheduler
+    # CLI to interact with Kube API
+    - kubectl
+
+- name: Install crypto keys
+  copy:
+    src: '{{ ansible_env.HOME }}/{{ item }}'
+    dest: /var/lib/kubernetes
+    remote_src: yes
+  loop:
+    - ca.pem
+    - ca-key.pem
+    - kubernetes-key.pem
+    - kubernetes.pem
+    - service-account.pem
+    - service-account-key.pem
+    - encryption-config.yml
+
+- name: Install kube service files
+  template:
+    src: '{{ item }}.service.j2'
+    dest: /etc/systemd/system/{{ item }}.service
+  loop:
+    - kube-apiserver
+
+- name: Install kube service files
+  copy:
+    src: '{{ item }}.service'
+    dest: /etc/systemd/system/{{ item }}.service
+  loop:
+    - kube-controller-manager
+    - kube-scheduler
+
+- name: Install kubeconfig files
+  copy:
+    src: '{{ ansible_env.HOME }}/{{ item }}.kubeconfig'
+    dest: /var/lib/kubernetes/
+    remote_src: yes
+  loop:
+    - kube-controller-manager
+    - kube-scheduler
+
+- name: Install kube-scheduler config file
+  copy:
+    src: kube-scheduler.yml
+    dest: /etc/kubernetes/config/kube-scheduler.yml
+
+- name: Start kube services
+  systemd:
+    name: '{{ item }}'
+    enabled: yes
+    state: restarted
+    daemon_reload: yes
+  loop:
+    - kube-apiserver
+    - kube-controller-manager
+    - kube-scheduler
+
+- name: Setup reverse proxy to support HTTP health checks
+  import_role:
+    name: nginx
+
+- name: Verify kube is running
+  command: kubectl cluster-info --kubeconfig {{ ansible_env.HOME }}/admin.kubeconfig
+  register: kube_check
+
+- debug:
+    var: kube_check
+
+- name: Perform health check
+  uri:
+    url: https://127.0.0.1:6443/healthz?verbose
+    validate_certs: no
+  changed_when: true
+  register: health_check
+
+- debug:
+    var: health_check

@@ -4,6 +4,23 @@
   connection: local
   tasks:
 
+    - name: Add Charm repo
+      become: yes
+      yum_repository:
+        name: Charm
+        description: Charm Tool and Library
+        baseurl: https://repo.charm.sh/yum/
+        gpgkey: https://repo.charm.sh/yum/gpg.key
+
+    - name: Install charms
+      become: yes
+      yum:
+        name:
+          - gum
+          - skate
+        disable_gpg_check: yes
+        state: present
+
     - name: Download awscli installer zip
       get_url:
         url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
