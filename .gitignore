@@ -7,3 +7,6 @@ pki/*.json
 *.kubeconfig
 encryption-config.yml
 k8s-public-address
+*.tfstate
+*.tfstate.backup
+*.tfstate.lock*
