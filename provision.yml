@@ -126,6 +126,9 @@
     - name: Configure CoreDNS on cluster, giving apps in the cluster DNS names
       command: kubectl apply -f deployments/coredns.yml
 
+    - name: Wait for CoreDNS pods to come online
+      command: kubectl wait --for=condition=ready pod -l k8s-app=kube-dns
+
     - name: Confirm basic functionality of cluster!
       command: kubectl get pods -l k8s-app=kube-dns -n kube-system
       register: result

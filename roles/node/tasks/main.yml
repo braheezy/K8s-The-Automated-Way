@@ -127,21 +127,24 @@
     - '{{ vm_name }}-key.pem'
     - '{{ vm_name }}.pem'
 
-- name: Install kubelet and kube-proxy kubeconfig
+- name: Install kubeconfigs
   copy:
-    src: '{{ item.src }}'
-    dest: '{{ item.dest }}'
+    src: '{{ ansible_env.HOME }}/{{ item.src }}.kubeconfig'
+    dest: /var/lib/{{ item.dest }}/kubeconfig
     remote_src: yes
   loop:
-    - src: '{{ ansible_env.HOME }}/{{ vm_name }}.kubeconfig'
-      dest: /var/lib/kubelet/kubeconfig
-    - src: '{{ ansible_env.HOME }}/kube-proxy.kubeconfig'
-      dest: /var/lib/kube-proxy/kubeconfig
+    - src: '{{ vm_name }}'
+      dest: kubelet
+    - src: kube-proxy
+      dest: kube-proxy
 
-- name: Install kubelet-config.yml
+- name: Install config files
   template:
-    src: kubelet-config.yml.j2
-    dest: /var/lib/kubelet/kubelet-config.yml
+    src: '{{ item }}-config.yml.j2'
+    dest: /var/lib/{{ item }}/{{ item }}-config.yml
+  loop:
+    - kube-proxy
+    - kubelet
 
 - name: Install kubelet and kube-proxy service file
   copy:

@@ -18,7 +18,8 @@ Assuming you are starting from absolute scratch:
 
 4. Install the base infrastructure in AWS to host a Kubernetes cluster:
 
-       terraform plan
+       terraform plan -target aws_instance.worker
+       terraform apply -target aws_instance.worker
        terraform apply
 
 5. Checkpoint! Confirm things are working so far:
@@ -48,7 +49,13 @@ Assuming you are starting from absolute scratch:
       - `CNI`: Container networking plugins. They configure networking inside containers
       - `kubectl`
    6. Local `kubectl` remote admin access
+   7. `coredns` deployment to cluster for DNS support
 
+8. Smoke test the cluster
 
-## Tips
+       bash smoke.sh
+
+## Lessons Learned
 - Don't use Ansible for rolling out cloud infrastructure. There's no clean way to delete/undo the damage done.
+- Terraform is drunk with configuration powers.
+- Run `ExecStart` command from service files by hand first.

@@ -42,7 +42,7 @@ gum style --foreground $STATUS "Generating 'kube-proxy' kubeconfig..."
 kubectl config set-cluster kubernetes-the-hard-way \
   --certificate-authority="$PKI_DIR/ca.pem" \
   --embed-certs=true \
-  --server=https://${KUBERNETES_PUBLIC_ADDRESS}:443 \
+  --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
   --kubeconfig=kube-proxy.kubeconfig
 
 kubectl config set-credentials system:kube-proxy \

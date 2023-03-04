@@ -122,7 +122,7 @@ Internal IP: $internal_ip
         -ca=ca.pem \
         -ca-key=ca-key.pem \
         -config=ca-config.json \
-        -hostname=${instance},${external_ip},${internal_ip} \
+        -hostname=${instance_hostname},${external_ip},${internal_ip} \
         -profile=kubernetes \
         ${instance}-csr.json | cfssljson -bare ${instance}
     gum style --foreground $SUCCESS "✅ Generated $instance's certs/keys!"

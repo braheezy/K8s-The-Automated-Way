@@ -1,5 +1,5 @@
 ---
-crictl_version: v1.26.0
-runc_version: v1.1.4
-cni_plugins_version: v1.2.0
-containerd_version: 1.6.19
+crictl_version: v1.21.0
+runc_version: v1.0.0-rc93
+cni_plugins_version: v0.9.1
+containerd_version: 1.4.4
