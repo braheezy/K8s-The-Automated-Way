@@ -1,4 +1,4 @@
-## K8s The Hard Way: Simple Automation
+# K8s The Automated Way
 This is pure education :school:
 
 It's a bunch of stuff automating this in AWS: https://github.com/kelseyhightower/kubernetes-the-hard-way/
