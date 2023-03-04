@@ -15,7 +15,7 @@ variable "TAG_NAME" {
 variable "CLUSTER_IP_START" {
   type = string
 }
-variable "POD_CIDR" {
+variable "POD_CIDR_PREFIX" {
   type = string
 }
 provider "aws" {
@@ -54,9 +54,34 @@ resource "aws_route_table" "main" {
     gateway_id = aws_internet_gateway.main.id
   }
 }
-resource "aws_route_table_association" "a" {
+resource "aws_route_table_association" "main" {
   subnet_id      = aws_subnet.main.id
   route_table_id = aws_route_table.main.id
+}
+
+# Create route per worker node.
+# This requires the network_interface_id which must be fetched from the data source.
+data "aws_instance" "worker" {
+  for_each    = toset(aws_instance.worker.*.id)
+  instance_id = each.key
+}
+# Create map of network IDs to CIDR blocks for each for_each use later.
+locals {
+  worker_route_info = zipmap(
+    [for val in data.aws_instance.worker : val.network_interface_id],
+  [for i in range(3) : "${var.POD_CIDR_PREFIX}.${i}.0/24"])
+}
+# Configure routes between Pods
+resource "aws_route" "private" {
+  for_each = local.worker_route_info
+
+  route_table_id         = aws_route_table.main.id
+  destination_cidr_block = each.value
+  network_interface_id   = each.key
+
+  depends_on = [
+    aws_instance.worker
+  ]
 }
 
 # Configure security groups, or firewall rules
@@ -70,7 +95,7 @@ resource "aws_security_group" "inbound" {
     description = "Allow all internal communication for all protocols"
     from_port   = 0
     to_port     = 0
-    cidr_blocks = ["${var.CLUSTER_IP_START}.0/24", "${var.POD_CIDR}/16"]
+    cidr_blocks = ["${var.CLUSTER_IP_START}.0/24", "${var.POD_CIDR_PREFIX}.0.0/16"]
   }
   ingress {
     protocol    = "tcp"

@@ -123,8 +123,11 @@
 
         kubectl config use-context kubernetes-the-hard-way
 
-    - name: Confirm kubectl is working locally
-      command: kubectl get nodes
+    - name: Configure CoreDNS on cluster, giving apps in the cluster DNS names
+      command: kubectl apply -f deployments/coredns.yml
+
+    - name: Confirm basic functionality of cluster!
+      command: kubectl get pods -l k8s-app=kube-dns -n kube-system
       register: result
 
     - debug:
