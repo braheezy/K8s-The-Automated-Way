@@ -15,7 +15,7 @@
   copy:
     src: /tmp/etcd-{{ etcd_version }}-linux-amd64/{{ item }}
     dest: /usr/local/bin/
-    mode: 0744
+    mode: 0755
     remote_src: yes
   loop:
     - etcd
@@ -51,7 +51,7 @@
   systemd:
     name: etcd
     enabled: yes
-    state: started
+    state: restarted
     daemon_reload: yes
 
 - name: Verify etcd install

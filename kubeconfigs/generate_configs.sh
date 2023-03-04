@@ -16,13 +16,14 @@ INFO='#c4a7e7'
 gum style --foreground $STATUS "Generating kubeconfigs for workers..."
 for i in 0 1 2; do
   instance="worker-${i}"
+  INSTANCE_HOSTNAME="ip-10-240-0-2${i}"
   kubectl config set-cluster kubernetes-the-hard-way \
     --certificate-authority="$PKI_DIR/ca.pem" \
     --embed-certs=true \
     --server=https://${KUBERNETES_PUBLIC_ADDRESS}:6443 \
     --kubeconfig=${instance}.kubeconfig
 
-  kubectl config set-credentials system:node:${instance} \
+  kubectl config set-credentials system:node:${INSTANCE_HOSTNAME} \
     --client-certificate="$PKI_DIR/${instance}.pem" \
     --client-key="$PKI_DIR/${instance}-key.pem" \
     --embed-certs=true \
@@ -30,7 +31,7 @@ for i in 0 1 2; do
 
   kubectl config set-context default \
     --cluster=kubernetes-the-hard-way \
-    --user=system:node:${instance} \
+    --user=system:node:${INSTANCE_HOSTNAME} \
     --kubeconfig=${instance}.kubeconfig
 
   kubectl config use-context default --kubeconfig=${instance}.kubeconfig

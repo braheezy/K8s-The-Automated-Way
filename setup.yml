@@ -16,8 +16,7 @@
       become: yes
       yum:
         name:
-          - gum
-          - skate
+          - guma
         disable_gpg_check: yes
         state: present
 
@@ -58,14 +57,17 @@
 
     - name: Install kubectl
       become: yes
-      yum:
-        name: kubernetes-client
+      get_url:
+        url: https://dl.k8s.io/{{ kube_version }}/bin/linux/amd64/kubectl
+        dest: /usr/local/bin/
+        mode: 0755
 
     - name: Add Hashicorp repo
       become: yes
       yum_repository:
         baseurl: https://rpm.releases.hashicorp.com/fedora/hashicorp.repo
         name: hashicorp
+        description: hashicorp
 
     - name: Install Terraform
       become: yes

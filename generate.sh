@@ -18,16 +18,22 @@ TITLE='#ea76cb'
 # cyan
 FOCUS='#04a5e5'
 
-if [ -n "$(ls -A $PKI_DIR)" ]; then
+while getopts 'f' flag; do
+    case ${flag} in
+        'f')
+            FORCE='true'
+            ;;
+    esac
+done
+
+if [ -n "$(ls -A $PKI_DIR)" ] && [ -z "${FORCE+x}" ]; then
     gum confirm \
         --prompt.foreground $INFO \
         "$PKI_DIR directory is not empty. Are you sure you want to delete these certs and generate new ones?" \
         && true || exit 0
 fi
 
-export KUBERNETES_PUBLIC_ADDRESS=$(aws ec2 describe-addresses \
-  --filters Name=tag:Name,Values=${TF_VAR_TAG_NAME} \
-  --output text --query 'Addresses[0].PublicIp')
+export KUBERNETES_PUBLIC_ADDRESS=$(cat k8s-public-address)
 
 script_name=$(gum style --foreground $FOCUS "$PKI_DIR/generate_certs.sh")
 gum style \

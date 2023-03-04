@@ -5,8 +5,6 @@
   pre_tasks:
     - set_fact:
         vm_name: "{{ hostvars[inventory_hostname]['vm_name'] }}"
-        cluster_ip: "{{ lookup('env', 'TF_VAR_CLUSTER_IP_START') }}"
-        k8s_public_ip: "{{ lookup('env', 'KUBERNETES_PUBLIC_ADDRESS') }}"
 
     - name: Ensure system is updated
       apt:
@@ -19,20 +17,6 @@
           - bat
           - net-tools
         state: present
-
-- hosts: workers
-  become: yes
-  tasks:
-    - name: Distribute certs/keys/kubeconfigs to workers
-      copy:
-        src: '{{ item }}'
-        dest: '{{ ansible_env.HOME }}'
-      loop:
-        - pki/{{ vm_name }}-key.pem
-        - pki/{{ vm_name }}.pem
-        - pki/ca.pem
-        - kubeconfigs/{{ vm_name }}.kubeconfig
-        - kubeconfigs/kube-proxy.kubeconfig
 
 - hosts: controllers
   become: yes
@@ -57,3 +41,91 @@
         name: etcd
     - import_role:
         name: control_plane
+
+- hosts: localhost
+  connection: local
+  tasks:
+    - name: Do external health check
+      uri:
+        url: https://{{ k8s_public_ip }}:6443/version
+        ca_path: pki/ca.pem
+      register: result
+
+    - debug:
+        var: result.json
+
+- hosts: controllers[0]
+  become: yes
+  tasks:
+    - name: Copy in RBAC configs
+      copy:
+        src: rbac/{{ item }}
+        dest: /tmp/
+      loop:
+        - ClusterRole.yml
+        - ClusterRoleBinding.yml
+
+    - name: Create the system:kube-apiserver-to-kubelet ClusterRole
+      command: kubectl apply --kubeconfig {{ ansible_env.HOME }}/admin.kubeconfig -f /tmp/ClusterRole.yml
+
+    - name: Bind the system:kube-apiserver-to-kubelet ClusterRole to the kubernetes user
+      command: kubectl apply --kubeconfig {{ ansible_env.HOME }}/admin.kubeconfig -f /tmp/ClusterRoleBinding.yml
+
+- hosts: workers
+  become: yes
+  tasks:
+    - name: Distribute certs/keys/kubeconfigs to workers
+      copy:
+        src: '{{ item }}'
+        dest: '{{ ansible_env.HOME }}'
+      loop:
+        - pki/{{ vm_name }}-key.pem
+        - pki/{{ vm_name }}.pem
+        - pki/ca.pem
+        - kubeconfigs/{{ vm_name }}.kubeconfig
+        - kubeconfigs/kube-proxy.kubeconfig
+
+    - import_role:
+        name: node
+
+- hosts: controllers[0]
+  become: yes
+  tasks:
+    - name: Check nodes are running
+      command: kubectl get nodes --kubeconfig {{ ansible_env.HOME }}/admin.kubeconfig
+      register: result
+
+    - debug:
+        var: result.stdout
+
+# - hosts: localhost
+#   connection: local
+#   tasks:
+#     - name: Configure admin remote kubectl access
+#       shell: |
+#         config set-cluster kubernetes-the-hard-way \
+#           --certificate-authority=pki/ca.pem \
+#           --embed-certs=true \
+#           --server=https://{{ k8s_public_ip }}:6443
+
+#         kubectl config set-cluster kubernetes-the-hard-way \
+#           --certificate-authority=pki/ca.pem \
+#           --embed-certs=true \
+#           --server=https://{{ k8s_public_ip }}:6443
+
+#         kubectl config set-credentials admin \
+#           --client-certificate=pki/admin.pem \
+#           --client-key=pki/admin-key.pem
+
+#         kubectl config set-context kubernetes-the-hard-way \
+#           --cluster=kubernetes-the-hard-way \
+#           --user=admin
+
+#         kubectl config use-context kubernetes-the-hard-way
+
+#     - name: Confirm kubectl is working locally
+#       command: kubectl get nodes
+#       register: result
+
+#     - debug:
+#         var: result.stdout

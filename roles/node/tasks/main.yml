@@ -1,0 +1,163 @@
+---
+
+- name: Install required unix tools
+  apt:
+    name:
+      - socat
+      - conntrack
+      - ipset
+
+- name: Check if swap memory is enabled
+  command: swapon --show
+  register: swap_status
+
+- name: Remove swap memory management, giving kubelet full control of resources
+  block:
+    - name: Disable swapoff now
+      command: swapoff -a
+
+    - name: Disable swapoff permanently
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+
+  when: swap_status.stdout|length > 0
+
+- name: Ensure various install directories exist
+  file:
+    path: '{{ item }}'
+    state: directory
+  loop:
+    - /etc/cni/net.d
+    - /opt/cni/bin
+    - /var/lib/kubelet
+    - /var/lib/kube-proxy
+    - /var/lib/kubernetes
+    - /var/run/kubernetes
+    - /etc/containerd/
+
+- name: Install kubelet, kubectl, and kube-proxy
+  get_url:
+    url: https://dl.k8s.io/{{ kube_version }}/bin/linux/amd64/{{ item }}
+    dest: /usr/local/bin/
+    mode: 0755
+  loop:
+    - kube-proxy
+    - kubelet
+    - kubectl
+
+- name: Install runc
+  get_url:
+    url: https://github.com/opencontainers/runc/releases/download/{{ runc_version }}/runc.amd64
+    dest: /usr/local/bin/runc
+    mode: 0755
+
+- name: Download crictl, cni-plugins, and containerd
+  get_url:
+    url: '{{ item }}'
+    dest: /tmp/
+  loop:
+    - https://github.com/kubernetes-sigs/cri-tools/releases/download/{{ crictl_version }}/crictl-{{ crictl_version }}-linux-amd64.tar.gz
+    - https://github.com/containernetworking/plugins/releases/download/{{ cni_plugins_version }}/cni-plugins-linux-amd64-{{ cni_plugins_version }}.tgz
+    - https://github.com/containerd/containerd/releases/download/v{{ containerd_version }}/containerd-{{ containerd_version }}-linux-amd64.tar.gz
+
+- name: Install crictl
+  unarchive:
+    src: /tmp/crictl-{{ crictl_version }}-linux-amd64.tar.gz
+    dest: /usr/local/bin
+    mode: 0755
+    owner: root
+    group: root
+    remote_src: yes
+
+- name: Unpack containerd
+  unarchive:
+    src: /tmp/containerd-{{ containerd_version }}-linux-amd64.tar.gz
+    dest: /tmp/
+    remote_src: yes
+
+- name: Install containerd
+  copy:
+    src: /tmp/bin/
+    dest: /bin
+    owner: root
+    group: root
+    remote_src: yes
+
+- name: Install cni-plugins
+  unarchive:
+    src: /tmp/cni-plugins-linux-amd64-{{ cni_plugins_version }}.tgz
+    dest: /opt/cni/bin/
+    mode: 0755
+    owner: root
+    group: root
+    remote_src: yes
+
+- name: Install network configs
+  template:
+    src: '{{ item }}.j2'
+    dest: /etc/cni/net.d/{{ item }}
+  loop:
+    - 10-bridge.conf
+    - 99-loopback.conf
+
+- name: Configure containerd
+  copy:
+    src: '{{ item.src }}'
+    dest: '{{ item.dest }}'
+  loop:
+    - src: containerd.service
+      dest: /etc/systemd/system/containerd.service
+    - src: config.toml
+      dest: /etc/containerd/config.toml
+
+- name: Configure cluster key
+  copy:
+    src: '{{ ansible_env.HOME }}/ca.pem'
+    dest: /var/lib/kubernetes/
+    remote_src: yes
+
+- name: Configure kubelet keys
+  copy:
+    src: '{{ ansible_env.HOME }}/{{ item }}'
+    dest: /var/lib/kubelet/
+    remote_src: yes
+  loop:
+    - '{{ vm_name }}-key.pem'
+    - '{{ vm_name }}.pem'
+
+- name: Install kubelet and kube-proxy kubeconfig
+  copy:
+    src: '{{ item.src }}'
+    dest: '{{ item.dest }}'
+    remote_src: yes
+  loop:
+    - src: '{{ ansible_env.HOME }}/{{ vm_name }}.kubeconfig'
+      dest: /var/lib/kubelet/kubeconfig
+    - src: '{{ ansible_env.HOME }}/kube-proxy.kubeconfig'
+      dest: /var/lib/kube-proxy/kubeconfig
+
+- name: Install kubelet-config.yml
+  template:
+    src: kubelet-config.yml.j2
+    dest: /var/lib/kubelet/kubelet-config.yml
+
+- name: Install kubelet and kube-proxy service file
+  copy:
+    src: '{{ item }}'
+    dest: /etc/systemd/system/
+  loop:
+    - kubelet.service
+    - kube-proxy.service
+
+- name: Start kube node services
+  systemd:
+    name: '{{ item }}'
+    enabled: yes
+    state: restarted
+    daemon_reload: yes
+  loop:
+    - containerd
+    - kubelet
+    - kube-proxy

@@ -15,6 +15,9 @@ variable "TAG_NAME" {
 variable "CLUSTER_IP_START" {
   type = string
 }
+variable "POD_CIDR" {
+  type = string
+}
 provider "aws" {
   region = var.AWS_REGION
   default_tags {
@@ -67,7 +70,7 @@ resource "aws_security_group" "inbound" {
     description = "Allow all internal communication for all protocols"
     from_port   = 0
     to_port     = 0
-    cidr_blocks = ["${var.CLUSTER_IP_START}.0/24", "10.200.0.0/16"]
+    cidr_blocks = ["${var.CLUSTER_IP_START}.0/24", "${var.POD_CIDR}/16"]
   }
   ingress {
     protocol    = "tcp"
@@ -150,6 +153,13 @@ resource "aws_lb_listener" "forward" {
 
 resource "aws_eip" "main" {
   vpc = true
+
+  depends_on = [aws_internet_gateway.main]
+}
+
+resource "local_file" "eip_address" {
+  content  = aws_eip.main.public_ip
+  filename = "k8s-public-address"
 }
 
 # ==========================================================

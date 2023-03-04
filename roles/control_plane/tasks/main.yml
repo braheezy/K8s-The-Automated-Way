@@ -14,15 +14,11 @@
   get_url:
     url: https://dl.k8s.io/{{ kube_version }}/bin/linux/amd64/{{ item }}
     dest: /usr/local/bin/
-    mode: 0744
+    mode: 0755
   loop:
-    # Handle API request in/out of the control plane
     - kube-apiserver
-    # Manage all control loops, the things that watch and converge state
     - kube-controller-manager
-    # Controls Pod deployment to Nodes
     - kube-scheduler
-    # CLI to interact with Kube API
     - kubectl
 
 - name: Install crypto keys
@@ -45,13 +41,13 @@
     dest: /etc/systemd/system/{{ item }}.service
   loop:
     - kube-apiserver
+    - kube-controller-manager
 
 - name: Install kube service files
   copy:
     src: '{{ item }}.service'
     dest: /etc/systemd/system/{{ item }}.service
   loop:
-    - kube-controller-manager
     - kube-scheduler
 
 - name: Install kubeconfig files

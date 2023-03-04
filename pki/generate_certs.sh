@@ -80,7 +80,7 @@ gum style --foreground $SUCCESS "✅ Generated admin cert/key!"
 
 for i in 0 1 2; do
     instance="worker-${i}"
-    cluster_name="${TF_VAR_CLUSTER_IP_START//./_}"
+    cluster_name="${TF_VAR_CLUSTER_IP_START//./-}"
     instance_hostname="ip-${cluster_name}-2${i}"
     cat > ${instance}-csr.json <<EOF
 {
@@ -212,6 +212,8 @@ gum style --foreground $SUCCESS "✅ Generated 'kube-scheduler' cert/key..."
 
 KUBERNETES_HOSTNAMES=kubernetes,kubernetes.default,kubernetes.default.svc,kubernetes.default.svc.cluster,kubernetes.svc.cluster.local
 
+CONTROLLER_INSTANCE_HOSTNAMES=ip-10-240-0-10,ip-10-240-0-11,ip-10-240-0-12
+
 cat > kubernetes-csr.json <<EOF
 {
   "CN": "kubernetes",
@@ -235,7 +237,7 @@ cfssl gencert \
   -ca=ca.pem \
   -ca-key=ca-key.pem \
   -config=ca-config.json \
-  -hostname=10.32.0.1,$TF_VAR_CLUSTER_IP_START.10,$TF_VAR_CLUSTER_IP_START.11,$TF_VAR_CLUSTER_IP_START.12,${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
+  -hostname=10.32.0.1,$TF_VAR_CLUSTER_IP_START.10,$TF_VAR_CLUSTER_IP_START.11,$TF_VAR_CLUSTER_IP_START.12,${CONTROLLER_INSTANCE_HOSTNAMES},${KUBERNETES_PUBLIC_ADDRESS},127.0.0.1,${KUBERNETES_HOSTNAMES} \
   -profile=kubernetes \
   kubernetes-csr.json | cfssljson -bare kubernetes
 gum style --foreground $SUCCESS "✅ Generated Kubernetes API Server cert/key..."

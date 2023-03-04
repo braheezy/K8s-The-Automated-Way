@@ -1,2 +1,7 @@
 ---
-aws_region: us-west-1
+aws_region: "{{ lookup('env', 'TF_VAR_AWS_REGION', default=Undefined) }}"
+kube_version: "{{ lookup('env', 'KUBE_VERSION', default=Undefined) }}"
+
+cluster_ip: "{{ lookup('env', 'TF_VAR_CLUSTER_IP_START') }}"
+k8s_public_ip: "{{ lookup('file', 'k8s-public-address') }}"
+pod_cidr: "{{ lookup('env', 'TF_VAR_POD_CIDR') }}"

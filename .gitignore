@@ -6,3 +6,4 @@ pki/*.json
 *.csr
 *.kubeconfig
 encryption-config.yml
+k8s-public-address

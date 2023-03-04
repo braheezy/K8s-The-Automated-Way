@@ -1,6 +1,3 @@
-output "eip_address" {
-  value = aws_eip.main.public_ip
-}
 output "aws_ec2_controller_info" {
   value = {
     ids         = ["${aws_instance.controller.*.id}"]
