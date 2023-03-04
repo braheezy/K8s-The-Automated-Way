@@ -55,6 +55,11 @@ Assuming you are starting from absolute scratch:
 
        bash smoke.sh
 
+9. You now have a working, HA, secure K8s cluster running in AWS. Do things with it.
+10. When you're done, remove everything:
+
+       terraform destroy
+
 ## Lessons Learned
 - Don't use Ansible for rolling out cloud infrastructure. There's no clean way to delete/undo the damage done.
 - Terraform is drunk with configuration powers.
