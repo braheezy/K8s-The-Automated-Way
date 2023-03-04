@@ -39,14 +39,15 @@ Assuming you are starting from absolute scratch:
       - `kube-controller-manager`: Manage all control loops, the things that watch and converge state
       - `kube-scheduler`: Control Pod deployment to Nodes
       - `kubectl`: CLI to interact with Kube API
-   4. Install and configure Node components:
-      - `kublet`: Agent that manages Pods
+   4. Setup RBAC for API Server to Kubelet communication
+   5. Install and configure Node components:
+      - `kubelet`: Agent that manages Pods
       - `kube-proxy`: Network proxy, which helps turn the node into a Service-friendly HTTP participant on a network
       - `runc`: Low level tool to manage OCI images
       - `containerd`: High level tool to manage OCI images
       - `CNI`: Container networking plugins. They configure networking inside containers
       - `kubectl`
-
+   6. Local `kubectl` remote admin access
 
 
 ## Tips
