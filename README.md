@@ -1,7 +1,7 @@
-## k8s hard way
+## K8s The Hard Way: Simple Automation
 This is pure education :school:
 
-It's a bunch of stuff automating this: https://github.com/prabhatsharma/kubernetes-the-hard-way-aws
+It's a bunch of stuff automating this in AWS: https://github.com/kelseyhightower/kubernetes-the-hard-way/
 
 ## Usage
 Assuming you are starting from absolute scratch:
@@ -12,7 +12,7 @@ Assuming you are starting from absolute scratch:
 
        skate set aws_access_key YOUR_KEY
        skate set aws_access_key_secret YOUR_SECRET
-3. Configure machine with required tools, like the AWS CLI, kubectl, Terraform:
+3. Configure machine with required tools, like the AWS CLI, `kubectl`, Terraform:
 
        ansible-playbook setup.yml
 
@@ -48,7 +48,7 @@ Assuming you are starting from absolute scratch:
       - `containerd`: High level tool to manage OCI images
       - `CNI`: Container networking plugins. They configure networking inside containers
       - `kubectl`
-   6. Local `kubectl` remote admin access
+   6. `kubectl` remote admin access
    7. `coredns` deployment to cluster for DNS support
 
 8. Smoke test the cluster
@@ -58,7 +58,7 @@ Assuming you are starting from absolute scratch:
 9. You now have a working, HA, secure K8s cluster running in AWS. Do things with it.
 10. When you're done, remove everything:
 
-       terraform destroy
+        terraform destroy
 
 ## Lessons Learned
 - Don't use Ansible for rolling out cloud infrastructure. There's no clean way to delete/undo the damage done.
